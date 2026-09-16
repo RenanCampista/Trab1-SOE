@@ -19,6 +19,95 @@ flowchart LR
     C --> LOG[Terminal JSON]
 ```
 
+## Diagrama de sequência
+
+O diagrama mostra a ordem das mensagens e confirmações da implementação atual. Cada coluna é
+um participante; o tempo avança de cima para baixo. Os três serviços executam independentemente
+(bloco `par`), conectados pelos tópicos do Kafka. As respostas tracejadas indicam retornos ou
+confirmações. O fluxo pressupõe os serviços iniciados e os tópicos criados pelo `kafka-init`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant P as Produtor Python
+    participant API as OpenSky API
+    participant K as Kafka Broker
+    participant R as Processador de regras
+    participant C as Consumidor de alertas
+    participant DB as SQLite
+    participant T as Terminal
+
+    Note over P,API: Região definida no .env (Vitória por padrão)
+    Note over K,C: Tópicos: aircraft.positions, aircraft.alerts e aircraft.derived
+
+    par Coleta periódica
+        loop Enquanto o produtor estiver ativo
+            P->>P: Calcular bounding box da região
+            P->>API: GET /states/all com limites geográficos
+            alt Consulta bem-sucedida
+                API-->>P: Estados das aeronaves em JSON
+                P->>P: Normalizar e filtrar posições antigas, inválidas ou fora do círculo
+                loop Para cada posição nova e válida
+                    P->>K: Publicar posição em aircraft.positions
+                    K-->>P: Confirmar entrega
+                    P->>P: Registrar posição como publicada em memória
+                end
+                P->>P: Aguardar intervalo configurado
+            else Limite de consultas (HTTP 429)
+                API-->>P: Informar prazo para nova tentativa
+                P->>P: Aguardar pelo menos o prazo informado
+            end
+        end
+    and Processamento de posições
+        loop Enquanto o processador estiver ativo
+            R->>K: Consultar aircraft.positions (poll)
+            K-->>R: Evento de posição disponível
+            R->>R: Validar contrato e atualizar histórico por região e aeronave
+            R->>R: Avaliar regras simples, aproximação e cooldown
+            loop Para cada alerta gerado
+                alt Proximidade, baixa altitude ou taxa vertical
+                    R->>K: Publicar alerta em aircraft.alerts
+                else Possível aproximação inferida da sequência de posições
+                    R->>K: Publicar evento derivado em aircraft.derived
+                end
+                K-->>R: Confirmar entrega do alerta
+            end
+            R->>R: Remover estados antigos da memória
+            R->>K: Confirmar offset da posição processada
+            K-->>R: Confirmar commit do offset
+        end
+    and Persistência e exibição
+        loop Enquanto o consumidor de alertas estiver ativo
+            C->>K: Consultar aircraft.alerts e aircraft.derived (poll)
+            K-->>C: Alerta disponível
+            C->>C: Validar contrato do alerta
+            C->>DB: INSERT OR IGNORE por event_id e commit
+            DB-->>C: Informar se houve nova inserção
+            opt Alerta inserido pela primeira vez
+                C->>T: Exibir alerta em JSON
+            end
+            C->>K: Confirmar offset do alerta processado
+            K-->>C: Confirmar commit do offset
+        end
+    end
+```
+
+### Como ler o fluxo
+
+- **Evento primitivo:** uma posição normalizada publicada em `aircraft.positions`.
+- **Três situações simples:** proximidade, baixa altitude e taxa vertical. Uma mesma posição
+  pode gerar mais de um alerta; o `loop` publica cada um separadamente.
+- **Evento derivado:** `possible_approach`, inferido de várias posições consecutivas. Nessa etapa,
+  o processador atua como consumidor e também como produtor Kafka.
+- **Ação:** o consumidor final grava o alerta no SQLite e exibe novas inserções no terminal.
+- **Confirmações:** a confirmação de entrega Kafka não significa que o consumidor já processou
+  o registro. O commit do offset registra o avanço de cada grupo de consumidores.
+
+Os retornos de `poll` sem mensagem foram omitidos para facilitar a leitura. Sem alerta, o
+processador ainda confirma a posição processada. Em caso de falha na publicação ou persistência,
+o fluxo é interrompido antes do commit correspondente, conforme a seção de entrega e recuperação.
+A autenticação OAuth2 opcional e os demais tratamentos HTTP estão descritos na seção sobre a API.
+
 ## Componentes
 
 1. **Produtor:** consulta `/states/all` com bounding box; filtra círculo e idade da posição;
