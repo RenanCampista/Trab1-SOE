@@ -4,7 +4,7 @@
 
 Monitorar aeronaves em região configurável, inicialmente no entorno de Vitória. O fluxo atende
 às três situações simples e à produção de evento derivado do Projeto1.pdf. A ação é persistir
-alertas e exibi-los no terminal; um painel gráfico pode ser acrescentado depois.
+alertas e exibi-los no terminal e em um dashboard Streamlit local.
 
 ```mermaid
 flowchart LR
@@ -17,6 +17,13 @@ flowchart LR
     D --> C
     C --> DB[(SQLite)]
     C --> LOG[Terminal JSON]
+    P --> S[Kafka: aircraft.collections]
+    POS --> V[Consumidor de visualização]
+    A --> V
+    D --> V
+    S --> V
+    V --> VIEW[(SQLite: dashboard.db)]
+    VIEW --> UI[Dashboard Streamlit]
 ```
 
 ## Diagrama de sequência
@@ -110,10 +117,57 @@ A autenticação OAuth2 opcional e os demais tratamentos HTTP estão descritos n
 
 ## Componentes
 
+### Interface e projeção para leitura
+
+O grupo `aeromonitor-visualization-v1` recebe posições, alertas e resultados de coleta sem disputar
+mensagens com os grupos existentes. Armazena a última posição por região/aeronave, alertas
+deduplicados e a última tentativa de coleta, preservando o horário do último sucesso.
+Upserts não permitem que eventos antigos façam posições ou estado da coleta retrocederem.
+
+O produtor publica `CollectionStatus` em `aircraft.collections` após cada ciclo, inclusive
+sem posições válidas e em falhas HTTP. O contrato inclui região, instante, sucesso, quantidade de
+posições válidas, descrição sem credenciais e prazo da próxima tentativa. Falha Kafka pode impedir
+essa publicação; nesse caso, o painel indica atraso após o prazo informado mais 60 segundos.
+Esse estado verifica a atualização da coleta, não garante a saúde de cada componente do sistema.
+
+Streamlit lê um snapshot SQLite a cada cinco segundos, sem consumir Kafka nem consultar OpenSky.
+A conexão usa `mode=ro`; WAL permite leituras durante gravações. No Docker, o banco da visualização
+é separado do banco do consumidor de terminal. Em execução local, ambos podem compartilhar o banco.
+O painel filtra a região configurada, exclui posições antigas e futuras e limita a consulta de alertas
+a 1.000 registros. Falta de banco, coleta sem posições, falha de coleta, atraso e erro SQLite têm
+mensagens distintas. As posições são exibidas por idade da observação, não por chegada ao painel.
+
+### Sequência da visualização
+
+```mermaid
+sequenceDiagram
+    participant P as Produtor
+    participant K as Kafka
+    participant V as Consumidor de visualização
+    participant DB as SQLite dashboard.db
+    participant UI as Streamlit
+    P->>K: Publicar resultado de coleta em aircraft.collections
+    K-->>P: Confirmar entrega
+    loop Consumo independente
+        V->>K: Poll de posições, alertas, derivados e coletas
+        K-->>V: Evento disponível
+        V->>DB: Atualizar projeção e confirmar transação
+        DB-->>V: Gravação concluída
+        V->>K: Commit do offset
+    end
+    loop A cada cinco segundos com painel aberto
+        UI->>DB: Ler snapshot da região em transação somente leitura
+        DB-->>UI: Posições, alertas e estado da coleta
+        UI->>UI: Aplicar filtros e atualizar mapa, indicadores e tabelas
+    end
+```
+
+### Serviços de coleta e regras
+
 1. **Produtor:** consulta `/states/all` com bounding box; filtra círculo e idade da posição;
    normaliza campos e publica. Usa relógio UTC local para validar idade, portanto mantenha-o
    sincronizado. Posições repetidas são suprimidas em memória após confirmação Kafka.
-2. **Kafka:** um broker/controller KRaft, três tópicos, uma partição por tópico, replicação 1
+2. **Kafka:** um broker/controller KRaft, quatro tópicos, uma partição por tópico, replicação 1
    e retenção de sete dias. Containers usam `kafka:19092`; host usa `localhost:9092`.
    A porta externa é vinculada ao loopback. Não há autenticação Kafka nesta instalação local.
 3. **Processador:** grupo `aeromonitor-processor-v1`; mantém N posições por região/aeronave e

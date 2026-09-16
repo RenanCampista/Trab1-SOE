@@ -51,7 +51,7 @@ services:
     entrypoint: [/bin/sh, -ec]
     command:
       - |
-        for topic in aircraft.positions aircraft.alerts aircraft.derived; do
+        for topic in aircraft.positions aircraft.alerts aircraft.derived aircraft.collections; do
           /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic "$$topic" --partitions 1 --replication-factor 1 --config retention.ms=604800000
         done
 
@@ -69,6 +69,30 @@ services:
     volumes:
       - alerts-data:/app/data
 
+  visualization:
+    <<: *app
+    command: [visualization]
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      DATABASE_PATH: /app/data/dashboard.db
+    volumes:
+      - dashboard-data:/app/data
+
+  dashboard:
+    <<: *app
+    entrypoint: [/app/.venv/bin/streamlit]
+    command: [run, src/aeromonitor/dashboard.py, --server.address=0.0.0.0, --server.port=8501, --server.headless=true, --browser.gatherUsageStats=false]
+    environment:
+      DATABASE_PATH: /app/data/dashboard.db
+    ports:
+      - "127.0.0.1:8501:8501"
+    depends_on:
+      visualization:
+        condition: service_started
+    volumes:
+      - dashboard-data:/app/data
+
 volumes:
   kafka-data:
   alerts-data:
+  dashboard-data:

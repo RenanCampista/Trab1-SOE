@@ -26,7 +26,23 @@ Em Linux/macOS, use `cp .env.example .env`. Não sobrescreva um `.env` já confi
 O Compose inicia Kafka em KRaft (sem ZooKeeper), cria os tópicos e inicia os três serviços.
 Na primeira execução, o download e a inicialização podem levar alguns minutos.
 Os alertas aparecem em JSON nos logs de `alerts` e no banco `/app/data/alerts.db`,
-persistido no volume `alerts-data`. Não há dashboard nesta versão.
+persistido no volume `alerts-data`.
+
+**Interface visual:** abra [http://localhost:8501](http://localhost:8501).
+O dashboard mostra mapa, aeronaves recentes, alertas filtráveis e a última coleta bem-sucedida.
+Atualiza a cada cinco segundos sem fazer consultas adicionais à OpenSky. Marcadores laranja
+indicam uma possível aproximação detectada nos últimos cinco minutos. O mapa-base usa CARTO e
+requer internet; os detalhes também estão disponíveis na tabela de posições.
+
+Os filtros de aeronave e tipo afetam a visualização, sem alterar a coleta. A lista exibe até
+1.000 alertas por período. Posições com mais de `MAX_POSITION_AGE_SECONDS` saem do mapa:
+com coleta anônima a cada 240 s e validade de 90 s, haverá intervalos sem marcadores recentes.
+Use OAuth2 e coleta a cada 30 s para acompanhar movimentos com maior continuidade.
+
+O serviço `visualization` consome os quatro tópicos com grupo independente e grava
+`/app/data/dashboard.db` no volume `dashboard-data`. O `dashboard` lê esse banco.
+Em projeto já existente, execute `docker compose up --build -d` para criar também o tópico
+`aircraft.collections` e os novos serviços. Os bancos anteriores são preservados.
 
 ```powershell
 docker compose stop
@@ -67,7 +83,7 @@ use o aeroporto como centro. As coordenadas dos presets são aproximadas.
 Depois de mudar `.env`, recrie os serviços; `restart` sozinho não atualiza o ambiente:
 
 ```powershell
-docker compose up -d --force-recreate producer processor alerts
+docker compose up -d --force-recreate producer processor alerts visualization dashboard
 ```
 
 Uma região é coletada por vez. A identificação de cada evento inclui região, centro e raio para
@@ -127,6 +143,17 @@ No Compose, o endereço interno é configurado automaticamente. Não execute os 
 simultaneamente no host e em containers. Para parar os serviços já ativos no Compose:
 `docker compose stop producer processor alerts`.
 Localmente, o banco fica em `data/alerts.db`. Ctrl+C encerra os serviços.
+
+Para visualizar a execução local, abra mais dois terminais na raiz:
+
+```powershell
+uv run aeromonitor visualization
+uv run streamlit run src/aeromonitor/dashboard.py --browser.gatherUsageStats=false
+```
+
+Ambos devem usar o mesmo `DATABASE_PATH` do `.env` (padrão: `data/alerts.db`). SQLite em modo WAL
+permite leitura do painel enquanto os consumidores gravam. Pare também os serviços `visualization`
+e `dashboard` no Docker antes de iniciar seus equivalentes locais.
 
 ## Regras implementadas
 

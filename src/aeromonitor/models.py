@@ -53,6 +53,18 @@ class Alert(BaseModel):
     source_event_ids: list[str]
 
 
+class CollectionStatus(BaseModel):
+    """Resultado de uma tentativa de coleta, mesmo sem posições publicáveis."""
+
+    schema_version: Literal[1] = 1
+    region_id: str
+    observed_at: int
+    success: bool
+    valid_positions: int = Field(default=0, ge=0)
+    detail: str
+    next_attempt_at: int
+
+
 def normalize(row: list, region: Region, collected_at: int, max_age: int) -> Position | None:
     """Converta um vetor OpenSky em posição válida dentro da região.
 

@@ -7,6 +7,9 @@ dependencies = [
   "confluent-kafka>=2.10,<3",
   "httpx>=0.28,<1",
   "pydantic-settings>=2.9,<3",
+  "streamlit>=1.50,<2",
+  "pydeck>=0.9,<1",
+  "tzdata>=2025.1",
 ]
 
 [project.scripts]

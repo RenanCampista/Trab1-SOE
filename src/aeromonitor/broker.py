@@ -8,6 +8,7 @@ from aeromonitor.config import Settings
 POSITIONS = "aircraft.positions"
 ALERTS = "aircraft.alerts"
 DERIVED = "aircraft.derived"
+COLLECTIONS = "aircraft.collections"
 
 
 class Publisher:
