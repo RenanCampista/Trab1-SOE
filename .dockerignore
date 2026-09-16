@@ -1,0 +1,11 @@
+.git
+.venv
+.env
+.env.*
+.uv-cache
+.pytest_cache
+.ruff_cache
+__pycache__
+data
+tests
+Projeto1.pdf
