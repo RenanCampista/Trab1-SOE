@@ -44,11 +44,12 @@ sequenceDiagram
     participant DB as SQLite
     participant T as Terminal
 
-    Note over P,API: Região definida no .env (Vitória por padrão)
+    Note over P,API: Região selecionada na interface, com padrão inicial no .env
     Note over K,C: Tópicos: aircraft.positions, aircraft.alerts e aircraft.derived
 
     par Coleta periódica
         loop Enquanto o produtor estiver ativo
+            P->>P: Ler seleção persistida antes da consulta
             P->>P: Calcular bounding box da região
             P->>API: GET /states/all com limites geográficos
             alt Consulta bem-sucedida
@@ -234,7 +235,42 @@ A retenção do Kafka é limitada e não substitui um arquivo histórico permane
 
 ## Região configurável
 
-Uma região é coletada por vez. Alterar `.env` e recriar serviços muda a coleta. O processador usa
+Uma região é coletada por vez. O seletor Streamlit oferece os três presets e salva a escolha no
+SQLite de controle (`CONTROL_DATABASE_PATH`), separado das projeções de eventos. O produtor lê
+essa seleção antes de cada ciclo, atualiza a configuração compartilhada com o cliente OpenSky e
+limpa a deduplicação em memória quando a cidade muda. Uma consulta em andamento mantém sua região.
+A espera normal, o backoff e o rate limit são preservados; a interface não dispara consultas extras.
+
+O banco de controle usa um registro único e escrita transacional. A última escolha confirmada
+prevalece, vale para todas as sessões e persiste após reinícios. A escolha persistida tem prioridade
+sobre o padrão do `.env`. Produtor e painel compartilham o volume `control-data` no Compose.
+Falhas de leitura não são tratadas como troca bem-sucedida: a interface informa o erro e o produtor
+interrompe a execução, evitando continuar silenciosamente em uma cidade divergente.
+
+O painel muda imediatamente de região, mas mostra o horário da última coleta OK para não confundir
+a escolha com uma consulta concluída. Outras sessões sincronizam a escolha na atualização periódica.
+Raio, coordenadas customizadas e demais limites continuam no `.env`; exigem recriação dos serviços.
+Com `REGION=custom`, a opção personalizada fica disponível junto dos três aeroportos.
+
+```mermaid
+sequenceDiagram
+    actor U as Usuário
+    participant UI as Streamlit
+    participant DB as SQLite de controle
+    participant P as Produtor
+    participant API as OpenSky
+    U->>UI: Selecionar cidade e confirmar
+    UI->>DB: Salvar seleção global em transação
+    DB-->>UI: Commit concluído
+    UI->>UI: Exibir mapa e histórico da cidade selecionada
+    Note over P,API: Respeitar intervalo ou espera de rate limit
+    P->>DB: Ler seleção no início do próximo ciclo
+    DB-->>P: Cidade selecionada
+    P->>P: Atualizar região e limpar deduplicação se mudou
+    P->>API: Consultar bounding box da cidade selecionada
+```
+
+O processador usa
 região e distância da mensagem, sem recalcular eventos antigos com o centro atual. Os limites das
 regras são os da execução atual; não existe versionamento de políticas para replay histórico.
 

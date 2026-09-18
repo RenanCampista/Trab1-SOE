@@ -54,7 +54,23 @@ Para remover containers preservando os dados: `docker compose down`.
 
 ## Escolher cidade/aeroporto
 
-Edite `.env`:
+Na barra lateral do painel, escolha **Cidade / aeroporto** e clique em **Monitorar cidade**:
+
+- Vitória / SBVT
+- Guarulhos / SBGR
+- Rio de Janeiro / SBGL (Galeão)
+
+O mapa e as tabelas passam a mostrar a cidade selecionada. O produtor aplica a escolha no
+**próximo ciclo**, sem reiniciar containers: até o intervalo configurado (240 s no padrão),
+ou após a espera imposta pela API em caso de limite. Uma consulta já iniciada termina com a
+região anterior. A troca não faz consultas extras nem contorna a cota da OpenSky.
+
+A seleção é global para todos os usuários, persiste após reinícios e tem prioridade sobre
+`REGION` no `.env`. Outras sessões acompanham a mudança na próxima atualização do painel.
+O horário da última coleta OK indica quando a região foi consultada com sucesso; um produtor
+desligado não começa a coletar apenas porque a seleção mudou.
+
+O `.env` define o padrão inicial (antes da primeira seleção) e o raio:
 
 ```dotenv
 REGION=vitoria
@@ -88,6 +104,10 @@ docker compose up -d --force-recreate producer processor alerts visualization da
 
 Uma região é coletada por vez. A identificação de cada evento inclui região, centro e raio para
 separar os históricos. Alertas de regiões anteriores permanecem no banco.
+Com `REGION=custom`, a região personalizada também aparece no seletor; selecione-a para ativá-la.
+O produtor e o dashboard compartilham `CONTROL_DATABASE_PATH` (local: `data/control.db`;
+Docker: `/app/control/control.db`, volume `control-data`). Não é necessário alterar esse caminho
+para escolher cidades. Em execução local, inicie ambos na raiz e com o mesmo `.env`.
 
 ## OpenSky: acesso e frequência
 

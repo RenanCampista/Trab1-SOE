@@ -8,7 +8,8 @@ from zoneinfo import ZoneInfo
 import pydeck as pdk
 import streamlit as st
 
-from aeromonitor.config import Settings
+from aeromonitor.config import AIRPORTS, Settings
+from aeromonitor.control import apply_selection, select_region, selected_region
 from aeromonitor.dashboard_data import collection_health, snapshot
 
 LABELS = {
@@ -105,19 +106,44 @@ def main():
     """Configure controles e atualize os dados a cada cinco segundos sem coletar da API."""
     st.set_page_config(page_title="AeroMonitor", page_icon="✈️", layout="wide")
     cfg = Settings()
+    default_region = cfg.region
+    try:
+        apply_selection(cfg, default_region)
+    except (sqlite3.Error, ValueError):
+        st.error("Não foi possível ler a cidade selecionada. Verifique o banco de controle.")
+        return
     region = cfg.monitored_region()
     st.title("AeroMonitor")
     st.caption(f"{region.name} · Raio de {region.radius_km:g} km · Fonte: OpenSky Network")
     with st.sidebar:
         st.header("Visualização")
-        st.info(f"Região da coleta: {region.name}")
+        options = list(AIRPORTS)
+        names = {key: value[0] for key, value in AIRPORTS.items()}
+        if default_region == "custom" or cfg.region == "custom":
+            options.append("custom")
+            names["custom"] = cfg.custom_name
+        with st.form("region_selection"):
+            choice = st.selectbox(
+                "Cidade / aeroporto",
+                options,
+                index=options.index(cfg.region),
+                format_func=names.get,
+            )
+            if st.form_submit_button("Monitorar cidade"):
+                try:
+                    select_region(cfg.control_database_path, choice)
+                except (sqlite3.Error, ValueError):
+                    st.error("Não foi possível salvar a cidade. Tente novamente.")
+                else:
+                    st.rerun()
         hours = st.selectbox(
             "Período dos alertas", [1, 6, 24], format_func=lambda h: f"Últimas {h} h"
         )
         search = st.text_input("Buscar aeronave", placeholder="Callsign ou ICAO24").strip().lower()
         selected = st.multiselect("Tipos de alerta", list(LABELS), format_func=LABELS.get)
         st.caption(
-            "A região da coleta é alterada no .env. Os filtros afetam apenas a visualização."
+            "A cidade selecionada vale para todos os usuários. A coleta muda no próximo ciclo, "
+            "respeitando o intervalo e os limites da API."
         )
         st.caption("Horários em America/Sao_Paulo. Mapa-base requer internet.")
 
@@ -126,6 +152,12 @@ def main():
         """Leia um snapshot e desenhe indicadores, mapa e tabelas filtradas."""
         now = int(time.time())
         try:
+            if selected_region(cfg.control_database_path, default_region) != cfg.region:
+                st.rerun()
+        except (sqlite3.Error, ValueError):
+            st.error("Não foi possível verificar a cidade selecionada.")
+            return
+        try:
             data = snapshot(cfg.database_path, region.id, now, cfg.max_position_age_seconds, hours)
         except sqlite3.Error:
             st.error(
@@ -133,6 +165,11 @@ def main():
             )
             return
         level, message = collection_health(data["collection"], now)
+        st.caption(
+            "Cidade selecionada: "
+            + region.name
+            + ". A última coleta OK abaixo confirma quando houve dados desta região."
+        )
         getattr(st, level)(message)
         positions = [
             p

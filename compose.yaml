@@ -58,6 +58,11 @@ services:
   producer:
     <<: *app
     command: [producer]
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      CONTROL_DATABASE_PATH: /app/control/control.db
+    volumes:
+      - control-data:/app/control
 
   processor:
     <<: *app
@@ -84,6 +89,7 @@ services:
     command: [run, src/aeromonitor/dashboard.py, --server.address=0.0.0.0, --server.port=8501, --server.headless=true, --browser.gatherUsageStats=false]
     environment:
       DATABASE_PATH: /app/data/dashboard.db
+      CONTROL_DATABASE_PATH: /app/control/control.db
     ports:
       - "127.0.0.1:8501:8501"
     depends_on:
@@ -91,8 +97,10 @@ services:
         condition: service_started
     volumes:
       - dashboard-data:/app/data
+      - control-data:/app/control
 
 volumes:
   kafka-data:
   alerts-data:
   dashboard-data:
+  control-data:

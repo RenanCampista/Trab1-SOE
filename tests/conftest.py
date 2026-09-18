@@ -5,10 +5,11 @@ from aeromonitor.models import Position
 
 
 @pytest.fixture
-def settings(monkeypatch):
+def settings(monkeypatch, tmp_path):
     """Forneça configurações padrão isoladas do ambiente e do arquivo .env."""
     for key in Settings.model_fields:
         monkeypatch.delenv(key.upper(), raising=False)
+    monkeypatch.setenv("CONTROL_DATABASE_PATH", str(tmp_path / "control.db"))
     return Settings(_env_file=None)
 
 

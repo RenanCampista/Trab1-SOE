@@ -64,6 +64,7 @@ class Settings(BaseSettings):
     approach_min_altitude_drop_m: float = Field(default=20, gt=0)
     alert_cooldown_seconds: int = Field(default=600, ge=0)
     database_path: str = "data/alerts.db"
+    control_database_path: str = "data/control.db"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
 
     @model_validator(mode="after")

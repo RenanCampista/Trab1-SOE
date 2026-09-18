@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from aeromonitor.broker import ALERTS, COLLECTIONS, DERIVED, POSITIONS, Publisher, consumer
 from aeromonitor.config import Settings
+from aeromonitor.control import apply_selection
 from aeromonitor.models import Alert, CollectionStatus, Position, normalize
 from aeromonitor.opensky import OpenSky, RateLimited
 from aeromonitor.rules import RuleEngine
@@ -48,9 +49,13 @@ def run_producer(cfg: Settings, stop: threading.Event):
     """
     api, publisher = OpenSky(cfg), Publisher(cfg)
     seen: dict[str, int] = {}
+    default_region = cfg.region
     failures = 0
     try:
         while not stop.is_set():
+            if apply_selection(cfg, default_region):
+                seen.clear()
+                log.info("Região alterada para %s", cfg.monitored_region().name)
             delay = cfg.poll_interval_seconds
             success, valid_count, detail = False, 0, "Falha na coleta"
             try:

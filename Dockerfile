@@ -7,7 +7,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-dev --no-install-project
 COPY src ./src
 RUN uv sync --locked --no-dev
-RUN useradd --uid 10001 --create-home app && mkdir /app/data && chown app:app /app/data
+RUN useradd --uid 10001 --create-home app && mkdir /app/data /app/control && chown app:app /app/data /app/control
 USER app
 ENTRYPOINT ["/app/.venv/bin/aeromonitor"]
 CMD ["producer"]
