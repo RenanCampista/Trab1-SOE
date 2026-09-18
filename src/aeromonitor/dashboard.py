@@ -141,11 +141,7 @@ def main():
         )
         search = st.text_input("Buscar aeronave", placeholder="Callsign ou ICAO24").strip().lower()
         selected = st.multiselect("Tipos de alerta", list(LABELS), format_func=LABELS.get)
-        st.caption(
-            "A cidade selecionada vale para todos os usuários. A coleta muda no próximo ciclo, "
-            "respeitando o intervalo e os limites da API."
-        )
-        st.caption("Horários em America/Sao_Paulo. Mapa-base requer internet.")
+        st.caption("Horários em America/Sao_Paulo.")
 
     @st.fragment(run_every=5)
     def live():
