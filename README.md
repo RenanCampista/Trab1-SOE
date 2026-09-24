@@ -19,11 +19,13 @@ Na raiz do projeto, em PowerShell:
 Copy-Item .env.example .env
 docker compose up --build -d
 docker compose ps
-docker compose logs -f producer processor alerts
+docker compose logs -f producer processor processor-2 alerts
 ```
 
 Em Linux/macOS, use `cp .env.example .env`. Não sobrescreva um `.env` já configurado.
-O Compose inicia Kafka em KRaft (sem ZooKeeper), cria os tópicos e inicia os três serviços.
+O Compose inicia Kafka em KRaft (sem ZooKeeper), com **2 brokers**, cria os quatro tópicos com
+**3 partições e replication factor 2** e inicia os serviços. O processador possui duas instâncias
+no mesmo consumer group, permitindo observar a distribuição das partições entre consumers.
 Na primeira execução, o download e a inicialização podem levar alguns minutos.
 Os alertas aparecem em JSON nos logs de `alerts` e no banco `/app/data/alerts.db`,
 persistido no volume `alerts-data`.
@@ -51,6 +53,39 @@ docker compose start
 
 Para remover containers preservando os dados: `docker compose down`.
 **`docker compose down -v` também apaga os volumes de Kafka e SQLite.**
+
+### Kafka distribuído desta versão
+
+A topologia didática desta versão foi ampliada para demonstrar conceitos da disciplina:
+
+- **2 brokers** (`kafka` e `kafka-2`);
+- **3 partições por tópico**;
+- **replication factor 2**;
+- producer com `acks=all` e idempotência;
+- **2 instâncias do processador** no mesmo `group-id`;
+- chave Kafka `region_id:icao24`, mantendo eventos da mesma aeronave na mesma partição.
+
+O broker `kafka` também exerce o papel de controller KRaft. Isso permite demonstrar replicação
+de dados entre dois brokers, mas **não fornece alta disponibilidade do plano de controle**: uma
+topologia KRaft tolerante à falha de controller normalmente exige um quorum ímpar, por exemplo
+três controllers. Para a apresentação, a configuração prioriza simplicidade e demonstração dos
+conceitos de broker, partição, replicação, key e consumer group.
+
+Para inspecionar a distribuição das partições:
+
+```powershell
+docker compose exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --describe
+```
+
+Para observar os dois processadores no mesmo grupo:
+
+```powershell
+docker compose logs -f processor processor-2
+```
+
+> Ao migrar de uma versão antiga do projeto, os novos volumes `kafka-data-1` e `kafka-data-2`
+> criam um cluster Kafka limpo. Os volumes SQLite (`alerts-data`, `dashboard-data` e
+> `control-data`) continuam preservados.
 
 ## Escolher cidade/aeroporto
 
@@ -133,6 +168,34 @@ O produtor respeita a espera de HTTP 429 e aplica espera crescente em falhas tra
 Posições fora do círculo, inválidas ou com mais de 90 segundos são filtradas. A ausência de
 uma aeronave não significa pouso ou saída da região.
 
+## Colocar online para a apresentação
+
+A aplicação continua usando a rede privada do Docker para Kafka; **não exponha as portas Kafka
+na Internet**. Somente o dashboard precisa ficar acessível externamente. Em uma VM/VPS Linux:
+
+1. Instale Docker e Docker Compose.
+2. Copie/clonar o projeto para o servidor.
+3. Crie `.env` a partir de `.env.example` e configure as credenciais OpenSky, se usadas.
+4. Defina:
+
+```dotenv
+DASHBOARD_BIND_ADDRESS=0.0.0.0
+```
+
+5. Suba os containers:
+
+```bash
+docker compose up --build -d
+```
+
+6. No firewall da VM, libere **apenas TCP 8501** para a demonstração. O painel ficará em
+`http://IP-DO-SERVIDOR:8501`. Para uso além de uma apresentação temporária, prefira colocar
+Caddy/Nginx com HTTPS na frente do Streamlit em vez de expor a porta diretamente.
+
+Os brokers permanecem publicados somente em `127.0.0.1` no host e são acessados pelos demais
+containers pelos nomes `kafka:19092` e `kafka-2:19092`. Portanto, não é necessário alterar
+`advertised.listeners` para colocar apenas o dashboard online.
+
 ## Desenvolvimento com uv
 
 ```powershell
@@ -147,7 +210,7 @@ Uma lista vazia pode indicar pouco movimento ou falta de cobertura.
 Para usar Python local e apenas Kafka no Docker:
 
 ```powershell
-docker compose up -d kafka kafka-init
+docker compose up -d kafka kafka-2 kafka-init
 ```
 
 Em três terminais separados, na raiz do projeto:
@@ -161,7 +224,7 @@ uv run aeromonitor alerts
 Use `KAFKA_BOOTSTRAP_SERVERS=localhost:9092` no `.env` para execução local.
 No Compose, o endereço interno é configurado automaticamente. Não execute os mesmos serviços
 simultaneamente no host e em containers. Para parar os serviços já ativos no Compose:
-`docker compose stop producer processor alerts`.
+`docker compose stop producer processor processor-2 alerts`.
 Localmente, o banco fica em `data/alerts.db`. Ctrl+C encerra os serviços.
 
 Para visualizar a execução local, abra mais dois terminais na raiz:
@@ -211,7 +274,7 @@ e deduplicação SQLite. Não precisam de conta nem gastam créditos da API.
 - **Sem alertas:** confira posições válidas nos logs do produtor e os limites das regras.
 - **401/403:** revise acesso e credenciais do API Client.
 - **429:** aguarde a liberação e aumente o intervalo de coleta.
-- **Kafka indisponível:** consulte `docker compose logs kafka kafka-init`.
+- **Kafka indisponível:** consulte `docker compose logs kafka kafka-2 kafka-init`.
 - **Evento inválido:** o consumidor falha sem confirmar o offset; corrija a origem antes de retomar.
 
 ## Estrutura
@@ -220,7 +283,7 @@ e deduplicação SQLite. Não precisam de conta nem gastam créditos da API.
 src/aeromonitor/        API, configuração, contratos, Kafka, regras, SQLite e CLI
 tests/                  testes offline
 docs/ARCHITECTURE.md     arquitetura e limitações
-compose.yaml            Kafka, criação de tópicos e três serviços
+compose.yaml            2 brokers Kafka, tópicos particionados/replicados e serviços
 Dockerfile              imagem Python com uv
 pyproject.toml          dependências, comando e Ruff
 uv.lock                 versões resolvidas

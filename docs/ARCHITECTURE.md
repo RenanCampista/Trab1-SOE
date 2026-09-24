@@ -29,9 +29,11 @@ flowchart LR
 ## Diagrama de sequência
 
 O diagrama mostra a ordem das mensagens e confirmações da implementação atual. Cada coluna é
-um participante; o tempo avança de cima para baixo. Os três serviços executam independentemente
-(bloco `par`), conectados pelos tópicos do Kafka. As respostas tracejadas indicam retornos ou
-confirmações. O fluxo pressupõe os serviços iniciados e os tópicos criados pelo `kafka-init`.
+um participante; o tempo avança de cima para baixo. Os serviços executam independentemente
+(bloco `par`), conectados pelos tópicos do Kafka. Nesta versão, o cluster possui dois brokers,
+três partições por tópico e replication factor 2. O grupo de processamento tem duas instâncias;
+o diagrama representa uma instância genérica do grupo. As respostas tracejadas indicam retornos
+ou confirmações. O fluxo pressupõe os serviços iniciados e os tópicos criados pelo `kafka-init`.
 
 ```mermaid
 sequenceDiagram
@@ -168,13 +170,44 @@ sequenceDiagram
 1. **Produtor:** consulta `/states/all` com bounding box; filtra círculo e idade da posição;
    normaliza campos e publica. Usa relógio UTC local para validar idade, portanto mantenha-o
    sincronizado. Posições repetidas são suprimidas em memória após confirmação Kafka.
-2. **Kafka:** um broker/controller KRaft, quatro tópicos, uma partição por tópico, replicação 1
-   e retenção de sete dias. Containers usam `kafka:19092`; host usa `localhost:9092`.
-   A porta externa é vinculada ao loopback. Não há autenticação Kafka nesta instalação local.
-3. **Processador:** grupo `aeromonitor-processor-v1`; mantém N posições por região/aeronave e
-   publica alertas simples ou inferência de aproximação.
+2. **Kafka:** dois brokers e um controller KRaft (embutido no broker `kafka`), quatro tópicos,
+   três partições por tópico, replication factor 2 e retenção de sete dias. Containers recebem
+   `kafka:19092,kafka-2:19092` como bootstrap servers; no host, os brokers estão em
+   `localhost:9092` e `localhost:9094`. As portas externas ficam vinculadas ao loopback e não há
+   autenticação Kafka nesta instalação local. O segundo broker demonstra replicação de dados;
+   esta topologia não oferece HA do plano de controle porque há apenas um controller.
+3. **Processador:** duas instâncias no grupo `aeromonitor-processor-v1`. Kafka distribui as três
+   partições entre elas; cada partição fica atribuída a uma única instância do grupo por vez.
+   Ambas mantêm estado local por região/aeronave e publicam alertas simples ou inferência de
+   aproximação.
 4. **Consumidor final:** grupo `aeromonitor-alerts-v1`; consome os dois tópicos de saída,
    grava SQLite e imprime alertas novos. A chave primária impede duplicar um mesmo ID.
+
+## Topologia Kafka da demonstração
+
+```text
+Kafka Cluster
+├── kafka (node 1)
+│   ├── broker
+│   └── controller KRaft
+└── kafka-2 (node 2)
+    └── broker
+
+Cada tópico:
+├── Partition 0  ── replication factor 2
+├── Partition 1  ── replication factor 2
+└── Partition 2  ── replication factor 2
+
+Consumer group aeromonitor-processor-v1:
+├── processor
+└── processor-2
+```
+
+O producer publica com idempotência e `acks=all`. A key das posições e dos alertas é baseada em
+`region_id:icao24`; por isso, eventos da mesma aeronave/região são destinados à mesma partição e
+mantêm a ordenação relativa oferecida pelo Kafka dentro dessa partição. Com três partições e dois
+consumers no mesmo grupo, uma instância normalmente recebe duas partições e a outra uma, sujeito
+a rebalanceamento.
 
 ## Contratos JSON, versão 1
 
@@ -227,11 +260,17 @@ de imprimir pode deixar o alerta somente no banco.
 **Estado temporal em memória:** reinício/rebalanceamento perde histórico e cooldown. A regra
 precisa de N novas observações e pode repetir alertas antes do cooldown anterior. Não há recuperação
 exata de janelas nem garantia de todos os eventos derivados durante falhas. Evolução sugerida:
-checkpoint de estado coordenado com offsets ou reconstrução controlada por replay. Não escalar
-processadores antes de tratar essa limitação.
+checkpoint de estado coordenado com offsets ou reconstrução controlada por replay. Nesta versão
+há duas instâncias do processador para demonstrar consumer groups e paralelismo por partição. A
+key `region_id:icao24` mantém a sequência de uma aeronave na mesma partição, mas um rebalanceamento
+pode mover essa partição para outra instância e, portanto, perder a janela temporal mantida apenas
+em memória. A demonstração continua correta para o modelo de consumo, mas não equivale a estado
+distribuído durável.
 
-Volumes preservam Kafka e SQLite entre reinícios. Replicação 1 não oferece alta disponibilidade.
-A retenção do Kafka é limitada e não substitui um arquivo histórico permanente.
+Volumes preservam Kafka e SQLite entre reinícios. Replication factor 2 mantém uma cópia de cada
+partição no outro broker e permite demonstrar redundância. Entretanto, com um único controller
+KRaft não há alta disponibilidade completa do cluster se o nó controller falhar. A retenção do
+Kafka é limitada e não substitui um arquivo histórico permanente.
 
 ## Região configurável
 

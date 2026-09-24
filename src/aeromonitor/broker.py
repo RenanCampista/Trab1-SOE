@@ -18,6 +18,7 @@ class Publisher:
             {
                 "bootstrap.servers": settings.kafka_bootstrap_servers,
                 "enable.idempotence": True,
+                "acks": "all",
                 "delivery.timeout.ms": 30000,
             }
         )
