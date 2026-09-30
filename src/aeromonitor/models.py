@@ -9,7 +9,7 @@ from aeromonitor.config import Region
 
 
 def distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Calcule a distância esférica em quilômetros entre coordenadas em graus.
+    """Calcula a distância esférica em quilômetros entre coordenadas em graus.
 
     Aplica a fórmula de haversine com raio terrestre de 6.371 km.
     """
@@ -66,7 +66,7 @@ class CollectionStatus(BaseModel):
 
 
 def normalize(row: list, region: Region, collected_at: int, max_age: int) -> Position | None:
-    """Converta um vetor OpenSky em posição válida dentro da região.
+    """Converte um vetor OpenSky em posição válida dentro da região.
 
     collected_at é o instante de coleta em segundos Unix e max_age é a idade
     máxima em segundos. Retorna None para vetores incompletos, valores inválidos,

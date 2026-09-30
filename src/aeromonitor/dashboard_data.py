@@ -7,10 +7,10 @@ from pathlib import Path
 
 
 def snapshot(path: str, region_id: str, now: int, max_age: int, hours: int) -> dict:
-    """Leia posições recentes, alertas e coleta da região em uma única transação.
+    """Lê posições recentes, alertas e coleta da região em uma única transação.
 
     Retorna estado vazio se o banco ainda não existir. Falhas SQLite são propagadas
-    para a interface sinalizar indisponibilidade, sem confundi-la com ausência de dados.
+    para a interface sinalizar indisponibilidade, sem confundir com ausência de dados.
     """
     result = {"positions": [], "alerts": [], "collection": None, "last_success_at": None}
     file = Path(path).resolve()
@@ -49,7 +49,7 @@ def snapshot(path: str, region_id: str, now: int, max_age: int, hours: int) -> d
 
 
 def collection_health(status: dict | None, now: int) -> tuple[str, str]:
-    """Classifique a coleta usando o prazo anunciado e uma tolerância de 60 segundos."""
+    """Classifica a coleta usando o prazo anunciado e uma tolerância de 60 segundos."""
     if status is None:
         return "info", "Aguardando a primeira coleta desta região."
     if now > status["next_attempt_at"] + 60:

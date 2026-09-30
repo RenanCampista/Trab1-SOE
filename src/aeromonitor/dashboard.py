@@ -21,7 +21,7 @@ LABELS = {
 
 
 def local_time(timestamp: int | None) -> str:
-    """Formate segundos Unix no fuso de São Paulo, incluindo a data."""
+    """Formata segundos Unix no fuso de São Paulo, incluindo a data."""
     if timestamp is None:
         return "—"
     return (
@@ -32,7 +32,7 @@ def local_time(timestamp: int | None) -> str:
 
 
 def render_map(positions: list[dict], alerts: list[dict], region, now: int):
-    """Mostre posições com tooltip e destaque aproximações dos últimos cinco minutos."""
+    """Mostra posições com tooltip e destaca aproximações dos últimos cinco minutos."""
     approaching = {
         a["icao24"]
         for a in alerts
@@ -103,7 +103,7 @@ def render_map(positions: list[dict], alerts: list[dict], region, now: int):
 
 
 def main():
-    """Configure controles e atualize os dados a cada cinco segundos sem coletar da API."""
+    """Configura controles e atualiza os dados a cada cinco segundos sem coletar da API."""
     st.set_page_config(page_title="AeroMonitor", page_icon="✈️", layout="wide")
     cfg = Settings()
     default_region = cfg.region
@@ -145,7 +145,7 @@ def main():
 
     @st.fragment(run_every=5)
     def live():
-        """Leia um snapshot e desenhe indicadores, mapa e tabelas filtradas."""
+        """Lê um snapshot e desenha indicadores, mapa e tabelas filtradas."""
         now = int(time.time())
         try:
             if selected_region(cfg.control_database_path, default_region) != cfg.region:

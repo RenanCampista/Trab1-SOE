@@ -22,9 +22,9 @@ log = logging.getLogger(__name__)
 
 
 def collect(api: OpenSky, cfg: Settings) -> list[Position]:
-    """Faça uma consulta e retorne posições recentes e válidas dentro da região.
+    """Faz uma consulta e retorna posições recentes e válidas dentro da região.
 
-    Registra as contagens recebida e válida; propaga falhas da API ao chamador.
+    Registra as contagens recebida e válida, e propaga falhas da API ao chamador.
     """
     payload = api.fetch()
     now = int(time.time())
@@ -42,7 +42,7 @@ def collect(api: OpenSky, cfg: Settings) -> list[Position]:
 
 
 def run_producer(cfg: Settings, stop: threading.Event):
-    """Colete e publique posições até stop ser sinalizado, fechando a API ao sair.
+    """Coleta e publica posições até stop ser sinalizado, fechando a API ao sair.
 
     Suprime posições já publicadas em memória e aguarda entre consultas, respeitando
     rate limit e backoff. Falhas Kafka e erros HTTP de acesso encerram o serviço.
@@ -52,7 +52,7 @@ def run_producer(cfg: Settings, stop: threading.Event):
     default_region = cfg.region
     failures = 0
     try:
-        while not stop.is_set():
+        while not stop.is_set(): # Enquanto não houver sinal de parada, colete e publique posições
             if apply_selection(cfg, default_region):
                 seen.clear()
                 log.info("Região alterada para %s", cfg.monitored_region().name)
@@ -99,8 +99,11 @@ def run_producer(cfg: Settings, stop: threading.Event):
         api.close()
 
 
-def publish_status(publisher, cfg, success, valid_count, detail, delay):
-    """Publique o resultado e o prazo da próxima tentativa sem expor credenciais."""
+def publish_status(
+    publisher: Publisher, cfg: Settings, success: bool,
+    valid_count: int, detail: str, delay: float
+):
+    """Publica o resultado e o prazo da próxima tentativa."""
     now = int(time.time())
     region_id = cfg.monitored_region().id
     publisher.send(
@@ -118,7 +121,7 @@ def publish_status(publisher, cfg, success, valid_count, detail, delay):
 
 
 def run_visualization(cfg: Settings, stop: threading.Event):
-    """Persista posições, alertas e coletas em um grupo Kafka independente."""
+    """Persiste posições, alertas e coletas em um grupo Kafka independente."""
     client = consumer(
         cfg, "aeromonitor-visualization-v1", [POSITIONS, ALERTS, DERIVED, COLLECTIONS]
     )
@@ -131,7 +134,9 @@ def run_visualization(cfg: Settings, stop: threading.Event):
                 continue
             if message.error():
                 raise KafkaException(message.error())
-            event = models[message.topic()].model_validate_json(message.value())
+
+            # Valida o evento recebido do Kafka
+            event = models[message.topic()].model_validate_json(message.value()) 
             if isinstance(event, Position):
                 store.save_position(event)
             elif isinstance(event, CollectionStatus):
@@ -145,7 +150,7 @@ def run_visualization(cfg: Settings, stop: threading.Event):
 
 
 def run_consumer(cfg: Settings, stop: threading.Event, processor: bool):
-    """Consuma eventos até stop ser sinalizado e libere os recursos ao encerrar.
+    """Consume eventos até stop ser sinalizado e libera os recursos ao encerrar.
 
     Com processor=True, avalia posições e publica alertas; caso contrário, persiste
     e imprime alertas. Confirma offsets somente após concluir a ação correspondente.
@@ -176,7 +181,7 @@ def run_consumer(cfg: Settings, stop: threading.Event, processor: bool):
                     topic = DERIVED if alert.kind == "possible_approach" else ALERTS
                     publisher.send(topic, f"{alert.region_id}:{alert.icao24}", alert)
                     log.info("%s: %s (%s)", alert.kind, alert.callsign, alert.region_name)
-                engine.prune(event.observed_at)
+                engine.prune(event.observed_at) # Descarta aeronaves não observadas recentemente do estado interno do motor de regras
             elif store.save(event):
                 print(event.model_dump_json(), flush=True)
             client.commit(message=message, asynchronous=False)
@@ -187,7 +192,7 @@ def run_consumer(cfg: Settings, stop: threading.Event, processor: bool):
 
 
 def main():
-    """Leia argumentos e configuração, prepare sinais/logs e execute o comando CLI."""
+    """Lê argumentos e configuração, prepara sinais/logs e executa o comando CLI."""
     parser = argparse.ArgumentParser(description="Monitor OpenSky + Kafka")
     parser.add_argument(
         "command", choices=["producer", "processor", "alerts", "visualization", "probe", "config"]

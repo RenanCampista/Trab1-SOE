@@ -7,13 +7,13 @@ from aeromonitor.storage import AlertStore
 
 
 def test_api_vectors_to_derived_alert_in_database(settings, tmp_path, monkeypatch):
-    """Verifique coleta, contratos JSON, regras e persistência em um fluxo offline."""
+    """Verifica coleta, contratos JSON, regras e persistência em um fluxo offline."""
     engine = RuleEngine(settings)
     store = AlertStore(str(tmp_path / "alerts.db"))
 
     class FakeAPI:
         def __init__(self, timestamp, latitude, altitude):
-            """Prepare uma resposta sintética com instante e posição controlados."""
+            """Prepara uma resposta sintética com instante e posição controlados."""
             self.payload = {
                 "states": [
                     [
@@ -34,7 +34,7 @@ def test_api_vectors_to_derived_alert_in_database(settings, tmp_path, monkeypatc
             }
 
         def fetch(self):
-            """Retorne os estados simulados sem realizar acesso à rede."""
+            """Retorna os estados simulados sem realizar acesso à rede."""
             return self.payload
 
     for ts, lat, altitude in [(1000, -20.16, 900), (1030, -20.18, 800), (1060, -20.20, 700)]:

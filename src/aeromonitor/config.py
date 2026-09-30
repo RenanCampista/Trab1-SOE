@@ -17,7 +17,7 @@ class Region:
     radius_km: float
 
     def bounds(self) -> dict[str, float]:
-        """Retorne a bounding box em graus que contém o círculo monitorado.
+        """Retorna a bounding box em graus que contém o círculo monitorado.
 
         Levanta ValueError se a área alcançar ou cruzar o antimeridiano.
         """
@@ -69,7 +69,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_settings(self):
-        """Valide credenciais, raios e limites geográficos e retorne a configuração.
+        """Valida credenciais, raios e limites geográficos e retorna a configuração.
 
         Levanta ValueError para credenciais incompletas ou região incompatível.
         """
@@ -81,7 +81,7 @@ class Settings(BaseSettings):
         return self
 
     def monitored_region(self) -> Region:
-        """Resolva o preset ou centro personalizado em uma região com ID estável.
+        """Resolve o preset ou centro personalizado em uma região com ID estável.
 
         O ID inclui centro e raio para separar históricos de áreas diferentes.
         """

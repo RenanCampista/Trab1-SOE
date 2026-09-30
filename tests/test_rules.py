@@ -47,7 +47,7 @@ def test_gap_breaks_approach(settings, position):
 
 
 def test_region_histories_are_separate(settings, position):
-    """Verifique que posições de regiões distintas não formam uma sequência comum."""
+    """Verifica quais posições de regiões distintas não formam uma sequência comum."""
     engine = RuleEngine(settings)
     engine.process(position(ts=1000, distance=14, altitude=1500))
     engine.process(position(ts=1030, distance=12, altitude=1300))
@@ -57,7 +57,7 @@ def test_region_histories_are_separate(settings, position):
 
 
 def test_ground_and_missing_altitude_do_not_generate_approach(settings, position):
-    """Verifique que solo ou ausência de altitude impedem inferir aproximação."""
+    """Verifica que solo ou ausência de altitude impedem inferir aproximação."""
     engine = RuleEngine(settings)
     assert engine.process(position(on_ground=True, vertical_rate_ms=10)) == []
     engine.process(position(ts=1030, altitude=None))
@@ -65,7 +65,7 @@ def test_ground_and_missing_altitude_do_not_generate_approach(settings, position
 
 
 def test_receding_aircraft_is_not_approaching(settings, position):
-    """Verifique que descer enquanto se afasta não caracteriza aproximação."""
+    """Verifica que descer enquanto se afasta não caracteriza aproximação."""
     engine = RuleEngine(settings)
     for index in range(3):
         result = engine.process(

@@ -6,7 +6,7 @@ from aeromonitor.models import Position
 
 @pytest.fixture
 def settings(monkeypatch, tmp_path):
-    """Forneça configurações padrão isoladas do ambiente e do arquivo .env."""
+    """Fornece configurações padrão isoladas do ambiente e do arquivo .env."""
     for key in Settings.model_fields:
         monkeypatch.delenv(key.upper(), raising=False)
     monkeypatch.setenv("CONTROL_DATABASE_PATH", str(tmp_path / "control.db"))
@@ -15,10 +15,10 @@ def settings(monkeypatch, tmp_path):
 
 @pytest.fixture
 def position():
-    """Forneça uma fábrica de posições sintéticas com campos personalizáveis."""
+    """Fornece uma fábrica de posições sintéticas com campos personalizáveis."""
 
     def make(ts=1000, distance=10, altitude=900, **overrides):
-        """Crie uma posição com tempo Unix, distância em km e altitude em metros."""
+        """Cria uma posição com tempo Unix, distância em km e altitude em metros."""
         values = dict(
             event_id=f"vitoria:abc123:{ts}",
             region_id="vitoria",

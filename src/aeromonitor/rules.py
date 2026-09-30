@@ -8,13 +8,13 @@ from aeromonitor.models import Alert, Position
 
 class RuleEngine:
     def __init__(self, settings: Settings):
-        """Inicialize históricos e cooldowns em memória com os limites configurados."""
+        """Inicializa históricos e cooldowns em memória com os limites configurados."""
         self.settings = settings
         self.history: dict[tuple[str, str], deque[Position]] = {}
         self.emitted: dict[tuple[str, str, str], int] = {}
 
     def process(self, p: Position) -> list[Alert]:
-        """Atualize o histórico e retorne alertas simples ou de possível aproximação.
+        """Atualiza o histórico e retorna alertas simples ou de possível aproximação.
 
         Ignora posições repetidas ou fora de ordem, reinicia sequências com lacunas
         longas e aplica cooldown por regra, região e aeronave usando o tempo do evento.
@@ -22,12 +22,16 @@ class RuleEngine:
         cfg = self.settings
         key = (p.region_id, p.icao24)
         history = self.history.setdefault(key, deque(maxlen=cfg.approach_samples))
+
+        # Se a posição for mais antiga que a última, ignora; se houver lacuna longa, reinicia.
         if history and p.observed_at <= history[-1].observed_at:
             return []
         if history and p.observed_at - history[-1].observed_at > cfg.approach_max_gap_seconds:
             history.clear()
         history.append(p)
         candidates: list[tuple[str, str, list[Position]]] = []
+
+        # Regras simples de alerta, aplicadas a cada posição individualmente.
         if not p.on_ground:
             if p.distance_km <= cfg.proximity_km:
                 candidates.append(("proximity", "Aeronave próxima ao centro monitorado", [p]))
@@ -38,6 +42,9 @@ class RuleEngine:
                 and abs(p.vertical_rate_ms) >= cfg.vertical_rate_threshold_ms
             ):
                 candidates.append(("vertical_movement", "Taxa vertical acima do limite", [p]))
+
+        # Regra de aproximação: todas as posições recentes devem estar acima do solo e
+        # com altitude e distância decrescentes, respeitando os limites mínimos.
         if len(history) == cfg.approach_samples and p.distance_km <= cfg.proximity_km:
             valid = all(x.altitude_m is not None and not x.on_ground for x in history)
             if valid and all(
@@ -52,6 +59,8 @@ class RuleEngine:
                         list(history),
                     )
                 )
+
+        # Aplica cooldown por regra, região e aeronave, retornando apenas alertas válidos.
         alerts = []
         for kind, message, sources in candidates:
             alert_key = (*key, kind)
@@ -75,7 +84,7 @@ class RuleEngine:
         return alerts
 
     def prune(self, now: int):
-        """Remova estados antigos em relação a now, expresso em segundos Unix.
+        """Remove estados antigos em relação a now, expresso em segundos Unix.
 
         Preserva o maior intervalo entre a janela de aproximação e o cooldown.
         """

@@ -8,7 +8,7 @@ from aeromonitor.models import Alert, CollectionStatus, Position
 
 class AlertStore:
     def __init__(self, path: str):
-        """Abra o banco SQLite e crie o diretório e a tabela de alertas se necessário."""
+        """Abre o banco SQLite e cria o diretório e a tabela de alertas se necessário."""
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.connection = sqlite3.connect(path, timeout=15)
         self.connection.execute("PRAGMA journal_mode=WAL")
@@ -32,7 +32,7 @@ class AlertStore:
         """)
 
     def save_position(self, position: Position):
-        """Atualize a última posição por região/aeronave sem retroceder no tempo."""
+        """Atualiza a última posição por região/aeronave sem retroceder no tempo."""
         with self.connection:
             self.connection.execute(
                 """
@@ -50,7 +50,7 @@ class AlertStore:
             )
 
     def save_collection(self, status: CollectionStatus):
-        """Guarde a tentativa mais recente e preserve a última coleta bem-sucedida."""
+        """Guarda a tentativa mais recente e preserve a última coleta bem-sucedida."""
         success_at = status.observed_at if status.success else None
         with self.connection:
             self.connection.execute(
@@ -69,7 +69,7 @@ class AlertStore:
             )
 
     def save(self, alert: Alert) -> bool:
-        """Grave e confirme o alerta, retornando True apenas para uma nova inserção.
+        """Grava e confirma o alerta, retornando True apenas para uma nova inserção.
 
         IDs já existentes são ignorados; falhas SQLite são propagadas ao chamador.
         """

@@ -10,7 +10,7 @@ from aeromonitor.control import apply_selection, select_region, selected_region
 
 
 def test_persistent_selection_and_validation(settings):
-    """Use o padrão até uma escolha válida e persista a seleção entre leituras."""
+    """Usa o padrão até uma escolha válida e persista a seleção entre leituras."""
     path = settings.control_database_path
     assert selected_region(path, "vitoria") == "vitoria"
     assert not Path(path).exists()
@@ -24,7 +24,7 @@ def test_persistent_selection_and_validation(settings):
 
 
 def test_dashboard_selection_changes_region(settings, tmp_path, monkeypatch):
-    """Confirme a cidade pela interface e restaure a escolha em uma nova sessão."""
+    """Confirma a cidade pela interface e restaure a escolha em uma nova sessão."""
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "dashboard.db"))
     script = Path("src/aeromonitor/dashboard.py").resolve()
     app = AppTest.from_file(script).run(timeout=20)
@@ -39,34 +39,34 @@ def test_dashboard_selection_changes_region(settings, tmp_path, monkeypatch):
 
 
 def test_producer_changes_region_between_cycles(settings, monkeypatch):
-    """Aplique a escolha após a espera, sem consultas extras nem reinício do serviço."""
+    """Aplica a escolha após a espera, sem consultas extras nem reinício do serviço."""
     regions = []
     delays = []
 
     class Stop:
-        """Encerre após dois ciclos e altere a região durante a primeira espera."""
+        """Encerra após dois ciclos e altera a região durante a primeira espera."""
 
         def is_set(self):
-            """Informe se os dois ciclos foram concluídos."""
+            """Informa se os dois ciclos foram concluídos."""
             return len(delays) == 2
 
         def wait(self, delay):
-            """Registre a espera e simule a alteração feita pelo painel."""
+            """Registra a espera e simula a alteração feita pelo painel."""
             delays.append(delay)
             select_region(settings.control_database_path, "galeao")
 
     class FakeAPI:
-        """Substitua o cliente externo durante o teste do laço de coleta."""
+        """Substitui o cliente externo durante o teste do laço de coleta."""
 
         def __init__(self, cfg):
-            """Guarde a configuração compartilhada com o produtor."""
+            """Guarda a configuração compartilhada com o produtor."""
             self.settings = cfg
 
         def close(self):
-            """Encerre o cliente sem recursos externos."""
+            """Encerra o cliente sem recursos externos."""
 
     def collect(api, cfg):
-        """Registre a região que seria usada na requisição."""
+        """Registra a região que seria usada na requisição."""
         assert api.settings is cfg
         regions.append(cfg.region)
         return []

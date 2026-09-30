@@ -50,7 +50,7 @@ def test_collection_keeps_last_success_on_failure_and_replay(tmp_path):
 
 
 def test_missing_database_and_empty_success(tmp_path):
-    """Distinga ausência de coleta de uma consulta bem-sucedida sem posições."""
+    """Distingue ausência de coleta de uma consulta bem-sucedida sem posições."""
     data = snapshot(str(tmp_path / "missing.db"), "vitoria", 1000, 90, 1)
     assert data["collection"] is None
     assert "primeira coleta" in collection_health(None, 1000)[1]
@@ -59,7 +59,7 @@ def test_missing_database_and_empty_success(tmp_path):
 
 
 def test_dashboard_empty_state(tmp_path, settings, monkeypatch):
-    """Abra a interface sem banco, apresentando espera sem erros de execução."""
+    """Abre a interface sem banco, apresentando espera sem erros de execução."""
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "missing.db"))
     app = AppTest.from_file(Path("src/aeromonitor/dashboard.py").resolve()).run(timeout=20)
     assert not app.exception
@@ -68,7 +68,7 @@ def test_dashboard_empty_state(tmp_path, settings, monkeypatch):
 
 
 def test_dashboard_filters_populated_data(tmp_path, settings, position, monkeypatch):
-    """Exiba dados reais do SQLite e aplique filtros de aeronave e tipo de alerta."""
+    """Exibe dados reais do SQLite e aplique filtros de aeronave e tipo de alerta."""
     import time
 
     path = str(tmp_path / "dashboard.db")

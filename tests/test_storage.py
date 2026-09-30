@@ -3,7 +3,7 @@ from aeromonitor.storage import AlertStore
 
 
 def test_duplicate_alert_is_stored_once_across_restart(tmp_path, settings, position):
-    """Verifique a deduplicação persistente mesmo após reabrir a conexão SQLite."""
+    """Verifica a deduplicação persistente mesmo após reabrir a conexão SQLite."""
     alert = RuleEngine(settings).process(position())[0]
     path = str(tmp_path / "alerts.db")
     store = AlertStore(path)

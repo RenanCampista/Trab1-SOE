@@ -8,7 +8,7 @@ from aeromonitor.config import AIRPORTS, Settings
 
 
 def selected_region(path: str, default: str) -> str:
-    """Leia a seleção persistida ou retorne o padrão sem criar arquivos."""
+    """Lê a seleção persistida ou retorna o padrão sem criar arquivos."""
     file = Path(path).resolve()
     if not file.exists():
         return default
@@ -26,7 +26,7 @@ def selected_region(path: str, default: str) -> str:
 
 
 def select_region(path: str, region: str):
-    """Grave atomicamente a região global; a última escolha confirmada prevalece."""
+    """Grava atomicamente a região global; a última escolha confirmada prevalece."""
     if region not in {*AIRPORTS, "custom"}:
         raise ValueError("Região desconhecida")
     Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -43,7 +43,7 @@ def select_region(path: str, region: str):
 
 
 def apply_selection(cfg: Settings, default: str) -> bool:
-    """Atualize a configuração usada pela API entre ciclos e indique se ela mudou."""
+    """Atualiza a configuração usada pela API entre ciclos e indique se ela mudou."""
     region = selected_region(cfg.control_database_path, default)
     changed = region != cfg.region
     cfg.region = region
